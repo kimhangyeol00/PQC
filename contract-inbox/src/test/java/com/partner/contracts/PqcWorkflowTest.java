@@ -77,6 +77,10 @@ class PqcWorkflowTest {
     @Test @DisplayName("L-01: legacy RSA-OAEP 봉투·ECDSA 승인 호환 및 GCM 문맥 검증")
     void legacyRsaEnvelopeAndEcdsaApprovalRemainReadable() throws Exception {
         java.security.Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+        assertThrows(IllegalArgumentException.class,
+            () -> Json.parse("{\"format\":\"contract-envelope-v1\",\"format\":\"contract-envelope-v2\"}"));
+        assertThrows(IllegalArgumentException.class,
+            () -> Json.parse("{\"format\":\"contract-envelope-v2\",\"content\":{\"scheme\":\"A\",\"scheme\":\"B\"}}"));
         CredentialStore credentials = new CredentialStore(temp.resolve("legacy-keys"), true);
         DocumentProtection protection = new DocumentProtection(credentials);
         byte[] pqcContext = Json.bytes(Json.object("domain", "contract-content-v2", "contract_id", "pqc-id", "version", 2));
@@ -113,6 +117,40 @@ class PqcWorkflowTest {
         String signature = Base64.getEncoder().encodeToString(ecdsa.sign());
         assertTrue(protection.verify("bob", "ECDSA-P256-SHA256", approvalMessage, signature));
         assertFalse(protection.verify("bob", DocumentProtection.SIGNATURE_SCHEME, approvalMessage, signature));
+    }
+
+    @Test @DisplayName("P-02: PQC 문서는 유효한 레거시 ECDSA 승인으로 대체할 수 없음")
+    void validLegacyEcdsaCannotApprovePqcEnvelope() throws Exception {
+        Path data = temp.resolve("signature-scheme-binding");
+        ContractService service = service(data);
+        Map<String, Object> created = service.create("alice", "bob", "서명 방식 결합", "PQC 문서 본문");
+        String id = (String)created.get("contract_id");
+        service.deliver("alice", id, 1);
+        service.approve("bob", id, 1);
+        Map<String, Object> approved = service.read("alice", id, 1, true);
+        Map<String, Object> envelope = Json.map(approved.get("envelope"));
+        Map<String, Object> payload = Json.map(approved.get("signed_payload"));
+        Map<String, Object> oldApproval;
+        try (var db = new Storage(data.resolve("contracts.sqlite3")).begin(false)) {
+            oldApproval = db.one("SELECT * FROM approvals WHERE contract_id=? AND version=1", id);
+        }
+
+        Map<String, Object> legacyMessage = Json.object("domain", "contract-approval-v1", "context", payload.get("context"),
+            "envelope_sha256", DocumentProtection.digest(envelope), "approval_id", oldApproval.get("id"),
+            "approver", "bob", "approved_at", oldApproval.get("created_at"), "signature_scheme", "ECDSA-P256-SHA256");
+        CredentialStore credentials = new CredentialStore(data.resolve("keys"), false, false);
+        byte[] message = Json.bytes(legacyMessage);
+        Signature ecdsa = Signature.getInstance("SHA256withECDSA");
+        ecdsa.initSign(credentials.key("bob", "approval", "legacy").getPrivate()); ecdsa.update(message);
+        String forgedClassicalSignature = Base64.getEncoder().encodeToString(ecdsa.sign());
+        assertTrue(new DocumentProtection(credentials).verify("bob", "ECDSA-P256-SHA256", message, forgedClassicalSignature));
+
+        try (var db = new Storage(data.resolve("contracts.sqlite3")).begin(true)) {
+            db.run("UPDATE approvals SET scheme=?, signature=? WHERE contract_id=? AND version=1",
+                "ECDSA-P256-SHA256", forgedClassicalSignature, id);
+            db.commit();
+        }
+        assertThrows(ApiException.class, () -> service.read("alice", id, 1, true));
     }
 
     @Test @DisplayName("U-01: 기존 DB와 RSA/EC 키만 있는 최초 PQC 업그레이드")

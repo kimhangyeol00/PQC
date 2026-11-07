@@ -24,7 +24,7 @@
                             승인본 확인 시 서명·봉투 재검증
 ```
 
-문서 작성·전달·열람·의견·승인·승인본 확인과 사용자별 권한 흐름을 유지했습니다. 기존 저장소에서 과거 RSA/ECDSA 자료는 계속 읽고 확인하되, 새 자료는 PQC 봉투와 서명만 사용합니다. ML-KEM/ML-DSA 처리, AEAD 태그 또는 서명 검증에 실패하면 오류를 반환하는 fail-closed 경로를 적용했습니다. JUnit 테스트 13개와 HTTP API smoke에서 정상 업무 흐름, 레거시 전환, 재시작 후 지속성, 비권한 사용자 거부, 암호문 변경 거부를 확인했습니다. 테스트가 확인하는 `X-User` 헤더는 실습용 신원 선택값일 뿐 인증 수단이 아니므로 실제 배포 권한경계로 간주하면 안 됩니다.
+문서 작성·전달·열람·의견·승인·승인본 확인과 사용자별 권한 흐름을 유지했습니다. 기존 저장소에서 과거 RSA/ECDSA 자료는 계속 읽고 확인하되, 새 자료는 PQC 봉투와 서명만 사용합니다. ML-KEM/ML-DSA 처리, AEAD 태그 또는 서명 검증에 실패하면 오류를 반환하는 fail-closed 경로를 적용했습니다. JUnit 테스트 14개와 HTTP API smoke에서 정상 업무 흐름, 레거시 전환, 재시작 후 지속성, 비권한 사용자 거부, 암호문 변경 거부를 확인했습니다. 테스트가 확인하는 `X-User` 헤더는 실습용 신원 선택값일 뿐 인증 수단이 아니므로 실제 배포 권한경계로 간주하면 안 됩니다.
 
 ## 2. 수행 목표 및 범위
 
@@ -91,7 +91,7 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 
 ## 7. 기능 및 보안 검증
 
-**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-final-hardened` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 13, Failures: 0, Errors: 0, Skipped: 0`입니다.
+**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-final-hardened` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`입니다.
 
 | 시험 | 방법 | 관찰 결과 |
 |---|---|---|
@@ -104,12 +104,12 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 | 저장 키 상태 (K-02/K-02b) | 기존 저장 데이터가 있는 상태에서 ML-KEM 개인키 삭제 또는 공개키 쌍 교체 후 Spring Boot 애플리케이션 컨텍스트로 기동 | 두 경우 모두 컨텍스트 시작이 `InvalidKeyException` 원인으로 실패. 키 파일 자동 재생성 없음 |
 | 최초 업그레이드·HTTP 업무 흐름 (U-01) | RSA/EC 키 파일과 기존 형식 DB만 만든 뒤 Spring Boot 웹 컨텍스트 기동; HTTP API로 신규 문서 작성·전달·열람·승인·승인본 조회; 컨텍스트 재기동 후 승인본 재조회 | 통과. 레거시 v1 본문 열람, 신규 ML-KEM 봉투와 ML-DSA 승인, `pqc_keys_initialized` 기록, 재기동 후 `signature_valid=true`와 본문 동일 확인 |
 | 최종 JAR의 OS 프로세스 재시작 | 현재 소스에서 패키징한 `target/application.jar`를 별도 DATA_DIR·포트 18083으로 실제 실행; HTTP 문서 생성·전달·승인·승인본 조회 후 프로세스를 종료하고 동일 설정으로 재실행 | 통과. 재기동 후 health=`ok`, 승인 scheme=`ML-DSA-65`, `signature_valid=true`, 본문이 재기동 전과 동일 |
-| 제출 ZIP 재현성 | 최종 ZIP을 `pqc-final-hardened`에 추출하고 Java 21/Maven 3.9.16으로 `mvn -B test package` 실행 | 통과. 추출본 `Tests run: 13, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`. 압축기는 29개 항목을 생성했으며 DB·개인키·`target`은 제외했습니다. |
+| 제출 ZIP 재현성 | 최종 ZIP을 `pqc-final-hardened`에 추출하고 Java 21/Maven 3.9.16으로 `mvn -B test package` 실행 | 통과. 추출본 `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`. 압축기는 29개 항목을 생성했으며 DB·개인키·`target`은 제외했습니다. |
 | Docker 신규 환경 실행 | 이번 직접 확인에서 수행하지 않음 | Maven 패키지와 앱 HTTP smoke 및 서비스 계층 테스트까지 확인. Docker daemon을 사용할 수 없어 `docker compose up` 환경 검증은 미수행 |
 
-최종 제출 ZIP을 별도 경로에 추출해 `mvn -B test package`를 실행한 결과는 `Tests run: 13, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`입니다. 추출본의 패키징 JAR도 별도 DATA_DIR로 HTTP 실행해 생성·전달·의견·승인·승인본 흐름, 비권한/미전달 404, 신원 누락 401, 작성자 승인 403, 앱 프로세스 재시작 후 문서·의견·공개키 유지를 확인했습니다. 재현 스크립트는 `scripts/Verify-Http.ps1`입니다. Docker 환경 검증은 포함하지 않았습니다.
+최종 제출 ZIP을 별도 경로에 추출해 `mvn -B test package`를 실행한 결과는 `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`입니다. 추출본의 패키징 JAR도 별도 DATA_DIR로 HTTP 실행해 생성·전달·의견·승인·승인본 흐름, 비권한/미전달 404, 신원 누락 401, 작성자 승인 403, 앱 프로세스 재시작 후 문서·의견·공개키 유지를 확인했습니다. 재현 스크립트는 `scripts/Verify-Http.ps1`입니다. Docker 환경 검증은 포함하지 않았습니다.
 
-추가된 `PqcHardeningTest` 8개는 다음 범위를 확인합니다. 기존 `PqcWorkflowTest` 5개와 합쳐 총 13개입니다.
+추가된 `PqcHardeningTest` 8개는 다음 범위를 확인합니다. 기존 `PqcWorkflowTest` 5개와 합쳐 총 14개입니다.
 
 | 시험 | 방법과 결과 |
 |---|---|
@@ -151,7 +151,7 @@ HTTP smoke는 사용자 요청의 업무 기능과 저장소 재시작을 추가
 | 승인 서명 입력 | Jackson 정렬 compact JSON의 UTF-8 바이트. 필드는 `domain`, `context`, `envelope_sha512`(레거시는 `envelope_sha256`), `approval_id`, `approver`, `approved_at`, `signature_scheme`; 정렬된 직렬화 키 순서는 알파벳순입니다. JCS/RFC 8785나 외부 고정 바이트 포맷은 아닙니다. |
 | 시험 증거 위치 | 테스트 ID와 메서드는 위 목록에 표시. `mvn -B test package` 실행 결과는 `target/surefire-reports/com.partner.contracts.PqcWorkflowTest.txt` 및 `.xml`에 생성됩니다. ZIP에는 빌드 로그/`target`을 싣지 않으며 제출자가 같은 명령으로 재생성합니다. |
 
-**제출 소스 식별:** `contract-inbox-pqc-submission.zip`, SHA-256 `4FABB7ECB78FCB639D5CE717B75B71C92F1508F14A3F1258FF53598417F2D4F8` (29개 항목). 이 값은 최종 ZIP을 재현 빌드한 뒤 계산했습니다.
+**제출 소스 식별:** `contract-inbox-pqc-submission.zip`, SHA-256 `812F6320FA1AAEAC1F8C69F0B8484CE3BD1F1F3D8C58ADCDDB20FD826383C1C7` (29개 항목). 이 값은 최종 ZIP을 재현 빌드한 뒤 계산했습니다.
 
 ## AI 활용 여부
 
