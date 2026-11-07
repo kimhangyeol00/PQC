@@ -44,7 +44,11 @@ final class ContractService {
         if (approval == null) return null;
         boolean valid;
         try {
-            valid = contract.get("recipient").equals(approval.get("approver"))
+            String format = str(parse(str(version, "envelope")), "format");
+            boolean allowed = DocumentProtection.ENVELOPE_V2.equals(format)
+                ? DocumentProtection.SIGNATURE_SCHEME.equals(approval.get("scheme"))
+                : "contract-envelope-v1".equals(format);
+            valid = allowed && contract.get("recipient").equals(approval.get("approver"))
                 && protection.verify(str(approval, "approver"), str(approval, "scheme"), bytes(message(contract, version, approval)), str(approval, "signature"));
         } catch (RuntimeException e) { valid = false; }
         if (!valid) throw new ApiException(409, "승인 정보의 무결성을 확인할 수 없습니다.");
@@ -159,7 +163,8 @@ final class ContractService {
             var result = object("id", id(), "contract_id", id, "version", number, "author", actor, "content", content, "created_at", now());
             try {
                 var commentEnvelope = protection.protect(content, bytes(commentContext(result)), str(contract, "author"), str(contract, "recipient"));
-                db.run("INSERT INTO comments VALUES (?, ?, ?, ?, ?, ?)", result.get("id"), id, number, actor, text(commentEnvelope), result.get("created_at"));
+                db.run("INSERT INTO comments(id,contract_id,version,author,content,created_at,protection_format) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    result.get("id"), id, number, actor, text(commentEnvelope), result.get("created_at"), DocumentProtection.ENVELOPE_V2);
             } catch (java.security.GeneralSecurityException e) { throw new IllegalStateException("Comment protection failed", e); }
             db.commit(); return result;
         }
@@ -170,13 +175,16 @@ final class ContractService {
             var result = db.rows("SELECT * FROM comments WHERE contract_id=? AND version=? ORDER BY created_at", id, number);
             for (var comment : result) {
                 String stored = str(comment, "content");
-                if (stored.startsWith("{")) {
-                    try {
+                String format = str(comment, "protection_format");
+                try {
+                    if (DocumentProtection.ENVELOPE_V2.equals(format)) {
                         var envelope = parse(stored);
-                        if (DocumentProtection.ENVELOPE_V2.equals(envelope.get("format")))
-                            comment.put("content", protection.open(actor, envelope, bytes(commentContext(comment))));
-                    } catch (Exception e) { throw new ApiException(409, "의견의 무결성을 확인할 수 없습니다."); }
-                }
+                        if (!DocumentProtection.ENVELOPE_V2.equals(envelope.get("format")))
+                            throw new IllegalArgumentException("Comment format mismatch");
+                        comment.put("content", protection.open(actor, envelope, bytes(commentContext(comment))));
+                    } else if (!"legacy-plaintext".equals(format)) throw new IllegalArgumentException("Unsupported comment format");
+                } catch (Exception e) { throw new ApiException(409, "의견의 무결성을 확인할 수 없습니다."); }
+                comment.remove("protection_format");
             }
             return result;
         }

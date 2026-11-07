@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
 CREATE TABLE IF NOT EXISTS comments (
  id TEXT PRIMARY KEY, contract_id TEXT NOT NULL, version INTEGER NOT NULL,
  author TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL,
+ protection_format TEXT NOT NULL DEFAULT 'legacy-plaintext',
  FOREIGN KEY (contract_id, version) REFERENCES versions(contract_id, number)
 );
 CREATE TABLE IF NOT EXISTS approvals (

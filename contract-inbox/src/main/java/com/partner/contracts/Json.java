@@ -1,6 +1,8 @@
 package com.partner.contracts;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import java.util.LinkedHashMap;
@@ -8,7 +10,10 @@ import java.util.Map;
 import java.nio.charset.StandardCharsets;
 
 final class Json {
-    private static final ObjectMapper MAPPER = new ObjectMapper().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+        .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+        .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+        .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     static byte[] bytes(Object value) {
         try { return MAPPER.writeValueAsBytes(value); }
         catch (Exception e) { throw new IllegalArgumentException("Invalid document", e); }

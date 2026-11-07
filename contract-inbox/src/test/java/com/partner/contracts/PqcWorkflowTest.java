@@ -135,12 +135,20 @@ class PqcWorkflowTest {
         byte[] context = Json.bytes(Json.object("domain", "contract-content-v1", "contract_id", contractId,
             "version", 1, "author", "alice", "recipient", "bob", "title", title, "created_at", createdAt));
         Map<String, Object> envelope = legacyEnvelope(legacyPairs, context, "전환 전 기존 본문");
+        Map<String, Object> legacyApprovalMessage = Json.object("domain", "contract-approval-v1", "context", Json.parse(new String(context, StandardCharsets.UTF_8)),
+            "envelope_sha256", DocumentProtection.digest(envelope), "approval_id", "legacy-approval", "approver", "bob",
+            "approved_at", createdAt, "signature_scheme", "ECDSA-P256-SHA256");
+        Signature legacySignature = Signature.getInstance("SHA256withECDSA");
+        legacySignature.initSign(legacyPairs.get("bob.approval").getPrivate()); legacySignature.update(Json.bytes(legacyApprovalMessage));
+        String encodedLegacySignature = DocumentProtection.encode(legacySignature.sign());
         var oldStorage = new Storage(data.resolve("contracts.sqlite3"));
         try (var db = oldStorage.begin(true)) {
             db.run("INSERT INTO metadata(key,value) VALUES ('initialized','1')");
             db.run("INSERT INTO contracts VALUES (?, ?, ?, 1, ?)", contractId, "alice", "bob", createdAt);
             db.run("INSERT INTO versions VALUES (?, 1, ?, ?, ?)", contractId, title, createdAt, Json.text(envelope));
             db.run("INSERT INTO deliveries VALUES (?, ?, 1, ?)", "legacy-delivery", contractId, createdAt);
+            db.run("INSERT INTO approvals VALUES (?, ?, 1, ?, ?, ?, ?)", "legacy-approval", contractId, "bob", createdAt,
+                "ECDSA-P256-SHA256", encodedLegacySignature);
             db.commit();
         }
 
@@ -148,6 +156,7 @@ class PqcWorkflowTest {
         try (ConfigurableApplicationContext contextAfterUpgrade = boot(data)) {
             ContractService upgraded = contextAfterUpgrade.getBean(ContractService.class);
             assertEquals("전환 전 기존 본문", upgraded.read("bob", contractId, 1, false).get("content"));
+            assertEquals(true, upgraded.read("bob", contractId, 1, true).get("signature_valid"));
             assertTrue(new Storage(data.resolve("contracts.sqlite3")).pqcKeysInitialized());
             int port = ((ServletWebServerApplicationContext)contextAfterUpgrade).getWebServer().getPort();
             HttpClient client = HttpClient.newHttpClient();

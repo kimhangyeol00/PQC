@@ -7,7 +7,7 @@
 - 성명: 미기재
 - 버전: `problem_source.zip` 기반 구현 / 2026-11-07
 
-> 문제 플랫폼에서 받은 공식 양식은 별도 파일 `technical-report-template.hwp`로 함께 두었습니다. 이 Markdown 보고서는 제출 버전의 기술 내용 원본이며, 제출 전에 표지의 참가자 정보를 채우고 공식 양식에 옮겨 쪽수·서식을 확인해야 합니다. 양식의 표지 제외 7쪽 이내 조건에 맞춰 아래 내용을 요약형으로 작성했습니다.
+> 공식 양식 파일은 이 저장소의 제출 ZIP에 포함되지 않습니다. 이 Markdown 보고서는 제출 버전의 기술 내용 원본이며, 제출 전에 표지의 참가자 정보를 채우고 공식 양식에 옮겨 쪽수·서식을 확인해야 합니다. 양식의 표지 제외 7쪽 이내 조건에 맞춰 아래 내용을 요약형으로 작성했습니다.
 
 ## 1. 수행 결과 요약
 
@@ -24,7 +24,7 @@
                             승인본 확인 시 서명·봉투 재검증
 ```
 
-문서 작성·전달·열람·의견·승인·승인본 확인과 사용자별 권한 흐름을 유지했습니다. 기존 저장소에서 과거 RSA/ECDSA 자료는 계속 읽고 확인하되, 새 자료는 PQC 봉투와 서명만 사용합니다. ML-KEM/ML-DSA 처리, AEAD 태그 또는 서명 검증에 실패하면 오류를 반환하는 fail-closed 경로를 적용했습니다. JUnit 테스트 5개와 HTTP API smoke에서 정상 업무 흐름, 레거시 전환, 재시작 후 지속성, 비권한 사용자 거부, 암호문 변경 거부를 확인했습니다. 테스트가 확인하는 `X-User` 헤더는 실습용 신원 선택값일 뿐 인증 수단이 아니므로 실제 배포 권한경계로 간주하면 안 됩니다.
+문서 작성·전달·열람·의견·승인·승인본 확인과 사용자별 권한 흐름을 유지했습니다. 기존 저장소에서 과거 RSA/ECDSA 자료는 계속 읽고 확인하되, 새 자료는 PQC 봉투와 서명만 사용합니다. ML-KEM/ML-DSA 처리, AEAD 태그 또는 서명 검증에 실패하면 오류를 반환하는 fail-closed 경로를 적용했습니다. JUnit 테스트 13개와 HTTP API smoke에서 정상 업무 흐름, 레거시 전환, 재시작 후 지속성, 비권한 사용자 거부, 암호문 변경 거부를 확인했습니다. 테스트가 확인하는 `X-User` 헤더는 실습용 신원 선택값일 뿐 인증 수단이 아니므로 실제 배포 권한경계로 간주하면 안 됩니다.
 
 ## 2. 수행 목표 및 범위
 
@@ -61,7 +61,7 @@
 | 승인·승인본 무결성 | ML-DSA-65 (FIPS 204); 도메인 분리된 승인 메시지에 계약/버전 맥락, 승인자/시각, 봉투 SHA-512 지문 포함 | 지원하지 않는 서명 형식, 검증 실패, 봉투 변경 시 승인본 거부 |
 | 공개키 공개 | PEM 인코딩 공개키를 기존 사용자 공개키 API에서 제공. 용도별 PQC 키 | 불일치·누락 시 키 처리 실패 |
 
-PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적용은 하나의 일관된 암호 문맥을 만들고, 하이브리드 키 결합 규칙·클래식 폴백 경로의 구현 오류를 줄입니다. 대신 ML-KEM/ML-DSA를 지원하지 않는 구형 클라이언트와는 호환되지 않으며, 라이브러리 결함 또는 격자 기반 분석 발전에 별도 클래식 방어층이 없습니다. ML-KEM-512보다 보수적인 768을 선택했고, 1024 대비 캡슐 크기·계산량을 낮추는 범주 3 선택입니다. NIST는 FIPS 203 매개변수에서 768을 192-bit 범주로 설명하며 더 높은 보안 세트일수록 성능이 낮아진다고 명시합니다.
+PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적용은 하나의 일관된 암호 문맥을 만들고, 하이브리드 키 결합 규칙·클래식 폴백 경로의 구현 오류를 줄입니다. 암호 연산은 서버 내부에서 수행하므로 기존 업무 API 클라이언트에 PQC 연산 구현을 요구하지 않습니다. 다만 외부에서 봉투·서명을 직접 처리하는 검증기는 PQC를 지원해야 하며, 라이브러리 결함 또는 격자 기반 분석 발전에 별도 클래식 방어층이 없습니다. ML-KEM-512보다 보수적인 768을 선택했고, 1024 대비 캡슐 크기·계산량을 낮추는 범주 3 선택입니다. NIST는 FIPS 203 매개변수에서 768을 192-bit 범주로 설명하며 더 높은 보안 세트일수록 성능이 낮아진다고 명시합니다.
 
 **비교 대안:** ML-KEM-768과 X25519를 함께 사용해 독립 비밀을 결합하는 하이브리드 KEM은 전통적 보안과 양자내성을 함께 유지하는 전환기 선택지입니다. 알고리즘 하나의 약화 영향을 낮출 수 있지만, 결합 함수·키 확인·양쪽 실패 처리와 이중 키/캡슐 저장으로 구현·운영 복잡성이 커지고 전송량도 늘어납니다. 이 프로젝트에선 프로토콜·클라이언트 호환 계층이 별도로 없고 새 데이터의 PQC 보호가 필수라 PQC 단독으로 일관되게 전환했습니다. 대안은 설계 비교만 했고 구현·성능 측정은 하지 않았습니다.
 
@@ -79,13 +79,19 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 
 ## 6. 전환 과정의 문제와 해결
 
+최종 보강 전 회귀 시험에서 암호화 의견을 평문 문자열로 바꾸면 정상 반환되는 문제, `{`로 시작하는 기존 평문 의견의 조회 오류, PQC v2 문서에 유효한 ECDSA 승인을 붙이면 인정하는 조합, 저장 JSON의 중복 필드 허용을 재현했습니다. 추가 시험 4개 중 3개 실패·1개 오류였고 기존 업무 시험 5개는 통과했습니다.
+
+의견은 `comments.protection_format` 열로 저장 형식을 명시하고 신규 작성 시 `contract-envelope-v2`를 기록하도록 수정했습니다. 이전 DB의 열 추가와 기존 의견 분류는 한 트랜잭션으로 수행합니다. 이후 조회에서는 해당 형식만 허용하며, 암호화 의견이 평문·미지원 형식·손상된 JSON으로 바뀌면 409로 거부합니다. 기존 평문은 내용이 `{`로 시작해도 읽습니다. 최초 분류 전 이미 훼손되어 형식 단서가 사라진 자료나 DB 전체를 함께 위조한 상황의 진위를 보장하지는 않습니다.
+
+승인 검증에는 문서 형식과 서명 알고리즘 조합을 검사하는 조건을 추가해 v2에는 ML-DSA-65만 허용했습니다. 원본 v1의 ECDSA 승인 및 v1에 대한 신규 ML-DSA 승인은 유지합니다. 저장 JSON은 중복 필드와 뒤따르는 추가 값을 거부하도록 설정했습니다. 정상 직렬화 방식은 유지했습니다.
+
 초기 테스트에서 애플리케이션 부트스트랩 밖에서 테스트 서비스를 만들 때 SQLite 상위 데이터 폴더가 없고, BC Provider가 등록되지 않아 테스트 초기화가 실패했습니다. 제품 부트스트랩과 같은 조건을 테스트에 반영해 저장 디렉터리를 먼저 만들고 Bouncy Castle Provider를 등록한 뒤 성공 결과를 얻었습니다. 본 애플리케이션은 기존과 같이 `Application` 부트스트랩에서 BC Provider를 등록합니다.
 
 이전 DB와 새 서명 알고리즘의 메시지 다이제스트가 달라 기존 승인 증거가 깨질 수 있어, 서명 방식별로 SHA-256(기존 ECDSA)과 SHA-512(새 ML-DSA) 지문 구성을 유지합니다. 오류·알고리즘 불일치를 무시하지 않고 승인본을 거부하도록 했습니다. HWP 공식 보고서 양식의 팀/성명 정보는 제공되지 않아 이 초안에서 임의로 채우지 않았습니다.
 
 ## 7. 기능 및 보안 검증
 
-**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-submission-extract-final-20261107-v3` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 5, Failures: 0, Errors: 0, Skipped: 0`입니다.
+**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-final-hardened` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 13, Failures: 0, Errors: 0, Skipped: 0`입니다.
 
 | 시험 | 방법 | 관찰 결과 |
 |---|---|---|
@@ -98,8 +104,25 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 | 저장 키 상태 (K-02/K-02b) | 기존 저장 데이터가 있는 상태에서 ML-KEM 개인키 삭제 또는 공개키 쌍 교체 후 Spring Boot 애플리케이션 컨텍스트로 기동 | 두 경우 모두 컨텍스트 시작이 `InvalidKeyException` 원인으로 실패. 키 파일 자동 재생성 없음 |
 | 최초 업그레이드·HTTP 업무 흐름 (U-01) | RSA/EC 키 파일과 기존 형식 DB만 만든 뒤 Spring Boot 웹 컨텍스트 기동; HTTP API로 신규 문서 작성·전달·열람·승인·승인본 조회; 컨텍스트 재기동 후 승인본 재조회 | 통과. 레거시 v1 본문 열람, 신규 ML-KEM 봉투와 ML-DSA 승인, `pqc_keys_initialized` 기록, 재기동 후 `signature_valid=true`와 본문 동일 확인 |
 | 최종 JAR의 OS 프로세스 재시작 | 현재 소스에서 패키징한 `target/application.jar`를 별도 DATA_DIR·포트 18083으로 실제 실행; HTTP 문서 생성·전달·승인·승인본 조회 후 프로세스를 종료하고 동일 설정으로 재실행 | 통과. 재기동 후 health=`ok`, 승인 scheme=`ML-DSA-65`, `signature_valid=true`, 본문이 재기동 전과 동일 |
-| 제출 ZIP 재현성 | 최종 ZIP을 `pqc-submission-extract-final-20261107-v3`에 추출하고 Java 21/Maven 3.9.16으로 `mvn -B test package` 실행 | 통과. 추출본 `Tests run: 5, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`. 압축기는 26개 항목을 생성했으며 DB·개인키·`target`은 제외했습니다. |
+| 제출 ZIP 재현성 | 최종 ZIP을 `pqc-final-hardened`에 추출하고 Java 21/Maven 3.9.16으로 `mvn -B test package` 실행 | 통과. 추출본 `Tests run: 13, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`. 압축기는 29개 항목을 생성했으며 DB·개인키·`target`은 제외했습니다. |
 | Docker 신규 환경 실행 | 이번 직접 확인에서 수행하지 않음 | Maven 패키지와 앱 HTTP smoke 및 서비스 계층 테스트까지 확인. Docker daemon을 사용할 수 없어 `docker compose up` 환경 검증은 미수행 |
+
+최종 제출 ZIP을 별도 경로에 추출해 `mvn -B test package`를 실행한 결과는 `Tests run: 13, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`입니다. 추출본의 패키징 JAR도 별도 DATA_DIR로 HTTP 실행해 생성·전달·의견·승인·승인본 흐름, 비권한/미전달 404, 신원 누락 401, 작성자 승인 403, 앱 프로세스 재시작 후 문서·의견·공개키 유지를 확인했습니다. 재현 스크립트는 `scripts/Verify-Http.ps1`입니다. Docker 환경 검증은 포함하지 않았습니다.
+
+추가된 `PqcHardeningTest` 8개는 다음 범위를 확인합니다. 기존 `PqcWorkflowTest` 5개와 합쳐 총 13개입니다.
+
+| 시험 | 방법과 결과 |
+|---|---|
+| H-01 의견 형식 교체 | 암호화 의견을 평문·미지원 format·깨진 JSON으로 교체하면 모두 409. 정상 평문으로 반환하지 않음 |
+| H-02 평문 호환 | `{`로 시작하는 기존 평문 의견을 원문대로 조회 |
+| H-03 승인 방식 제한 | 시험용 레거시 키로 생성한 수학적으로 유효한 ECDSA 서명도 v2 봉투에서는 409로 거부 |
+| H-04 JSON 엄격 검증 | 중복 필드 및 뒤따르는 추가 JSON 값을 거부 |
+| H-05 기존 DB 변환 | 이전 6열 comments의 평문/v2 혼재 자료 보존, 반복 시작 시 결과 동일, 내부 형식 열은 API에 노출하지 않음, 변환 후 평문 교체는 재시작 뒤에도 거부 |
+| H-06 의견 무결성 | 암호문 비트 변경과 미지원 저장 형식을 409로 거부 |
+| H-07 KEM 실패 경로 | KEM ciphertext·wrapped_key·wrap nonce 변경 시 복호화 실패, 원래 자료는 정상 복호화 |
+| H-08 키 양쪽 유실 | 초기화 마커를 지워도 PQC 자료가 남아 있으면 공개/개인키 양쪽 유실 시 자동 재생성 없이 시작 실패 |
+
+실제 JAR 프로세스 재시작 검증은 제출 ZIP에 포함된 `scripts/Verify-Http.ps1`로 재현합니다. PowerShell 7에서 실행하며 생성·전달·의견·승인·승인본, 비권한 404, 미전달 404, 신원 누락 401, 작성자 승인 403을 확인합니다. 같은 DATA_DIR로 프로세스를 다시 시작해 본문·의견·공개키가 유지되는지 검사합니다. 상세 시험 안내는 `docs/VERIFICATION.md`, 결과는 `target/http-verification/result.json`에 있습니다.
 
 통합 테스트는 실제 ML-KEM 캡슐화·역캡슐화, ML-DSA 서명·검증을 수행합니다. `PqcWorkflowTest`의 5개 메서드는 F-01 `pqcDocumentWorkflowPersistsAndRejectsUnauthorizedOrTamperedAccess`, L-01 `legacyRsaEnvelopeAndEcdsaApprovalRemainReadable`, U-01 `legacyOnlyDatabaseCanStartAndTransitionToPqc`, K-02 `missingPersistedKeyFailsClosed`, K-02b `mismatchedPersistedKeyPairFailsClosed`입니다. 로컬 재현 뒤 상세 로그는 `target/surefire-reports/com.partner.contracts.PqcWorkflowTest.txt`와 `.xml`에서 확인할 수 있습니다. 직접 확인하지 않은 항목은 성능·메모리 벤치마크, 다중 OS/Docker 신규 환경, 외부 클라이언트 또는 언어 간 상호운용, 공식 FIPS 모듈 검증입니다. Bouncy Castle 일반 JCA Provider는 FIPS 검증 모듈이라고 주장하지 않습니다. TLS 미적용, 외부 인증 미구현, 서버 복호화 구조 때문에 서버 침해·가상 사용자 헤더 위조를 방어하는 종단 간 문서 암호화는 아닙니다.
 
@@ -110,7 +133,7 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 | 요구·주장 | 구현 근거 | 재현 시험 |
 |---|---|---|
 | 본문·의견을 수신자별 PQC 보호 | `DocumentProtection.protect/open`, `ContractService.comment/comments` | F-01, L-01 |
-| 전달·열람·승인 권한 및 승인본 무결성 | `ContractService.deliver/read/approve/approvedCopy`, `ApiController` 경로 인가 | F-01 (비권한 404와 암호문 변경 거부) |
+| 전달·열람·승인 권한 및 승인본 무결성 | `ContractService.deliver/read/approve`와 `read(..., approvedOnly=true)`, `ApiController` 경로 인가 | F-01 (비권한 404와 암호문 변경 거부) |
 | 이전 RSA/ECDSA 데이터 읽기 호환 | `DocumentProtection.open` 및 기존 승인 검증 분기 | L-01 |
 | 레거시 DB 최초 PQC 생성 및 그 뒤 키 손실 차단 | Spring `Application.contracts` → `Application.openService`, `Storage.pqcKeysInitialized/hasPqcArtifacts/markPqcKeysInitialized`, `CredentialStore.loadPqc` | U-01, K-02, K-02b |
 | 데이터와 승인 키가 프로세스 재시작 후 유지 | `CredentialStore`, SQLite `Storage`; 동일 `DATA_DIR` | F-01 및 HTTP smoke 재시작 |
@@ -128,7 +151,7 @@ HTTP smoke는 사용자 요청의 업무 기능과 저장소 재시작을 추가
 | 승인 서명 입력 | Jackson 정렬 compact JSON의 UTF-8 바이트. 필드는 `domain`, `context`, `envelope_sha512`(레거시는 `envelope_sha256`), `approval_id`, `approver`, `approved_at`, `signature_scheme`; 정렬된 직렬화 키 순서는 알파벳순입니다. JCS/RFC 8785나 외부 고정 바이트 포맷은 아닙니다. |
 | 시험 증거 위치 | 테스트 ID와 메서드는 위 목록에 표시. `mvn -B test package` 실행 결과는 `target/surefire-reports/com.partner.contracts.PqcWorkflowTest.txt` 및 `.xml`에 생성됩니다. ZIP에는 빌드 로그/`target`을 싣지 않으며 제출자가 같은 명령으로 재생성합니다. |
 
-**제출 소스 식별:** `contract-inbox-pqc-submission.zip`, SHA-256 `589775B33BFC8B0EB2D2F26E5C276BDC1C1FDEB6C98957557AD78E86C3518EF1` (26개 항목). 이 값은 최종 ZIP을 재현 빌드한 뒤 계산했습니다.
+**제출 소스 식별:** `contract-inbox-pqc-submission.zip`, SHA-256 `4FABB7ECB78FCB639D5CE717B75B71C92F1508F14A3F1258FF53598417F2D4F8` (29개 항목). 이 값은 최종 ZIP을 재현 빌드한 뒤 계산했습니다.
 
 ## AI 활용 여부
 
