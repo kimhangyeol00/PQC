@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8000"
+    environment:
+      DATA_DIR: /workspace/data
+      SEED_DEMO: ${SEED_DEMO:-true}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms64m -Xmx384m}
+    volumes:
+      - contract_data:/workspace/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "--max-time", "2", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+volumes:
+  contract_data:

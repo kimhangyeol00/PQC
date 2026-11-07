@@ -1,0 +1,7 @@
+*
+!pom.xml
+!src
+!src/**
+!scripts
+scripts/*
+!scripts/start.sh

@@ -1,0 +1,9 @@
+target/
+.env
+.idea/
+.vscode/
+*.iml
+data/*
+!data/.gitkeep
+*.zip
+dist/

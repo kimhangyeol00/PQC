@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>파트너 계약 문서함</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/workspace.css">
+  <script src="/assets/workspace.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-icon">P</span><span>PARTNER<span class="brand-sub">계약 문서함</span></span></a>
+    <p class="nav-label">WORKSPACE</p>
+    <div class="nav-active"><span>▤</span> 계약 문서</div>
+    <div class="sidebar-note">함께 검토하고,<br>확인한 내용으로 합의합니다.</div>
+    <div class="identity-box"><label for="identity">가상 사용자</label><select id="identity" aria-label="가상 사용자"></select><p id="identity-info"></p></div>
+    <a class="api-link" href="/docs" target="_blank" rel="noopener">업무 API 문서 ↗</a>
+  </aside>
+  <main>
+    <header class="page-header"><div><div class="eyebrow">PARTNER WORKSPACE</div><h1>계약 문서</h1><p>초안부터 최종 승인까지, 협력사와 함께 확인하세요.</p></div><button id="create-contract" class="primary">＋ 새 계약 작성</button></header>
+    <div id="message" role="status" aria-live="polite" hidden></div>
+    <section class="stats" aria-label="문서 현황"><div><span>내 계약</span><strong id="stat-total">—</strong></div><div><span>검토 중</span><strong id="stat-pending">—</strong></div><div><span>승인 완료</span><strong id="stat-approved">—</strong></div><div><span>받은 문서 버전</span><strong id="stat-inbox">—</strong></div></section>
+    <section class="workspace"><div class="document-list"><div class="list-heading"><h2>문서 목록</h2><button id="refresh" class="quiet" aria-label="새로고침">↻</button></div><div id="contracts" aria-live="polite"></div></div><article id="detail"><div class="empty"><span class="empty-icon">▤</span><h2>문서를 선택해 주세요</h2><p>계약 내용과 검토 이력을 확인할 수 있습니다.</p></div></article></section>
+    <footer>노스웍스 · 파트너랩 <span>협력 업무용 로컬 워크스페이스</span></footer>
+  </main>
+  <dialog id="editor"><form id="editor-form"><div class="dialog-heading"><div><div class="eyebrow">CONTRACT DOCUMENT</div><h2 id="editor-title">새 계약 작성</h2></div><button type="button" id="close-editor" class="quiet" aria-label="닫기">✕</button></div><label>계약 제목<input id="input-title" name="title" required maxlength="200" placeholder="예: 서비스 운영 계약서"></label><label id="recipient-label">수신 검토자<select id="input-recipient" name="recipient"></select></label><label>계약 내용<textarea id="input-content" name="content" rows="12" required maxlength="200000" placeholder="검토할 계약 내용을 입력하세요."></textarea></label><p class="form-note">저장한 문서는 작성자와 지정된 수신자 사이에서만 공유됩니다. 저장 후 전달해 주세요.</p><p id="editor-error" role="alert" hidden></p><div class="dialog-footer"><button type="button" id="cancel-editor" class="secondary">취소</button><button type="submit" id="save-editor" class="primary">초안 저장</button></div></form></dialog>
+</body>
+</html>
