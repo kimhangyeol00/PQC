@@ -44,7 +44,12 @@ final class ContractService {
         if (approval == null) return null;
         boolean valid;
         try {
-            valid = contract.get("recipient").equals(approval.get("approver"))
+            String envelopeFormat = str(parse(str(version, "envelope")), "format");
+            String scheme = str(approval, "scheme");
+            boolean compatibleScheme = (DocumentProtection.ENVELOPE_V2.equals(envelopeFormat)
+                    && DocumentProtection.SIGNATURE_SCHEME.equals(scheme))
+                || ("contract-envelope-v1".equals(envelopeFormat) && "ECDSA-P256-SHA256".equals(scheme));
+            valid = compatibleScheme && contract.get("recipient").equals(approval.get("approver"))
                 && protection.verify(str(approval, "approver"), str(approval, "scheme"), bytes(message(contract, version, approval)), str(approval, "signature"));
         } catch (RuntimeException e) { valid = false; }
         if (!valid) throw new ApiException(409, "승인 정보의 무결성을 확인할 수 없습니다.");

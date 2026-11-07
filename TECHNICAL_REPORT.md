@@ -24,7 +24,7 @@
                             승인본 확인 시 서명·봉투 재검증
 ```
 
-문서 작성·전달·열람·의견·승인·승인본 확인과 사용자별 권한 흐름을 유지했습니다. 기존 저장소에서 과거 RSA/ECDSA 자료는 계속 읽고 확인하되, 새 자료는 PQC 봉투와 서명만 사용합니다. ML-KEM/ML-DSA 처리, AEAD 태그 또는 서명 검증에 실패하면 오류를 반환하는 fail-closed 경로를 적용했습니다. JUnit 테스트 5개와 HTTP API smoke에서 정상 업무 흐름, 레거시 전환, 재시작 후 지속성, 비권한 사용자 거부, 암호문 변경 거부를 확인했습니다. 테스트가 확인하는 `X-User` 헤더는 실습용 신원 선택값일 뿐 인증 수단이 아니므로 실제 배포 권한경계로 간주하면 안 됩니다.
+문서 작성·전달·열람·의견·승인·승인본 확인과 사용자별 권한 흐름을 유지했습니다. 기존 저장소에서 과거 RSA/ECDSA 자료는 계속 읽고 확인하되, 새 자료는 PQC 봉투와 서명만 사용합니다. v2 문서는 ML-DSA 승인만 허용하고 저장 JSON의 중복 필드는 파서 단계에서 거부합니다. ML-KEM/ML-DSA 처리, AEAD 태그 또는 서명 검증에 실패하면 오류를 반환하는 fail-closed 경로를 적용했습니다. JUnit 테스트 6개와 HTTP API smoke에서 정상 업무 흐름, 레거시 전환, 재시작 후 지속성, 비권한 사용자 거부, 변조·알고리즘 혼합 승인 거부를 확인했습니다. 테스트가 확인하는 `X-User` 헤더는 실습용 신원 선택값일 뿐 인증 수단이 아니므로 실제 배포 권한경계로 간주하면 안 됩니다.
 
 ## 2. 수행 목표 및 범위
 
@@ -38,7 +38,7 @@
 |---|---|---|---|---|
 | 계약 제목·본문·버전 | `versions.title`, `versions.envelope`; `DocumentProtection.protect/open` | AES-256-GCM, 랜덤 256-bit DEK, 기존 RSA-2048 OAEP-SHA-256 DEK 포장. 신규는 ML-KEM-768 공유 비밀→KTS 파생 AES-256 KEK→GCM DEK 포장 | 매우 높음. 계약 조항·기술자료이며 장기 보관·수집 후 복호화 위험 | AES 유지, 공개키 기반 DEK 전달을 ML-KEM-768/KTS로 전환 |
 | 계약 의견 | `comments.content`; 원본은 평문 SQLite 저장 | 별도 공개키 암호 없음 | 높음. 의견에 계약 정보·협상 조건이 포함될 수 있음 | 새 의견을 AES-GCM+사용자별 ML-KEM 봉투로 보호 |
-| 승인 증거 | `approvals`의 승인자·시각·알고리즘·서명, `ContractService.message` | ECDSA P-256/SHA-256; 계약/버전 문맥과 봉투 SHA-256 지문을 서명 | 매우 높음. 장기 진위·변경 탐지, 장기 검증 필요 | 새 승인 ML-DSA-65 + 봉투 SHA-512 지문 |
+| 승인 증거 | `approvals`의 승인자·시각·알고리즘·서명, `ContractService.message/verified` | 기존 ECDSA P-256/SHA-256; 계약/버전 문맥과 봉투 SHA-256 지문을 서명 | 매우 높음. 장기 진위·변경 탐지, 알고리즘 다운그레이드 위험 | v1 봉투에만 ECDSA 호환, v2 PQC 봉투는 ML-DSA-65와 SHA-512 지문으로 제한 |
 | 사용자 공개/개인키 | `CredentialStore`; `DATA_DIR/keys/*.pem`, `.pqc.pem`, `.pqc.pub.pem`; DB `metadata.pqc_keys_initialized` | 사용자별 RSA 암호화 키와 EC 서명 키 | 최고. 키 유출 시 기밀성 또는 승인 진위 붕괴 | 레거시 키 유지, ML-KEM/ML-DSA 별도 키쌍 생성·영구 보관. 초기 도입 완료 마커와 키쌍 자체검사로 유실·불일치 차단 |
 | 업무 DB·전달/권한 메타데이터 | `contracts`, `deliveries`, `comments`, `approvals` SQLite 테이블 | 공개키 암호 없음. 전달 관계와 사용자 ID로 앱 권한 결정 | 높음. 관계·시점·승인 유무의 노출·변조 위험 | DB 자체 암호화는 미적용; 승인 메시지 서명은 승인 문맥과 버전 봉투 지문을 검증 |
 | API/전송 계층 | `ApiController`, `application.properties`, `compose.yaml` | `X-User` 헤더 가상 사용자, 소스 내 TLS 미설정 | 인터넷 노출 시 전송·인증 위험 | 프로젝트 내 TLS·인증 전환 없음; 로컬 전용으로 제한 |
@@ -71,8 +71,9 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 - `Application`/`Storage`: 최초 PQC 도입을 `metadata.pqc_keys_initialized`로 표시합니다. 기존 RSA/EC 키와 DB만 있는 레거시 저장소이고 PQC 자산도 아직 없으면 RSA/EC 키 생성은 계속 금지하면서 PQC 키 생성만 허용합니다. 키 생성·self-test가 끝난 뒤 마커를 기록합니다. 마커가 있거나 PQC 자료가 발견된 경우에는 키 재생성을 금지합니다.
 - `CredentialStore`: 사용자별 ML-KEM-768·ML-DSA-65 키를 새 `.pqc` PEM 파일로 생성하고 기존 RSA/EC 키와 분리해 유지합니다. 키 파일을 데이터 디렉터리에 보관하므로 DB와 동일한 영속 저장소를 사용합니다. 로드한 ML-DSA 쌍은 서명/검증, ML-KEM 쌍은 캡슐화/역캡슐화 self-test로 대응 여부를 확인합니다. 마커가 있는 저장소에서 키 누락·불완전·불일치 시 자동 재생성하지 않고 시작을 거부합니다. POSIX에선 개인키 0600, 폴더 0700 권한을 지정합니다.
 - `DocumentProtection`: 새 `contract-envelope-v2`를 생성합니다. 작성자·지정 수신자 공개키별 ML-KEM 캡슐화로 KEM 공유 비밀과 캡슐화 바이트를 만들고, KTS가 파생한 AES-256 KEK로 DEK를 AES-GCM 포장합니다. envelope v1/RSA 복호화와 ECDSA 승인 확인은 이미 존재하는 데이터만 읽기 위한 호환 경로입니다.
-- `ContractService`: 새 승인 메시지는 봉투 SHA-512 지문으로 ML-DSA-65 검증하며, 과거 ECDSA 기록은 원래 SHA-256 메시지 형태로 확인합니다. 서명 알고리즘에 따라 `approved-copy`의 공개키도 맞춰 제공합니다. 새 의견을 봉투로 저장하고 API 조회 때 권한 확인 후 복호화합니다. 의견 평문으로 저장된 이전 레코드는 원래 값을 조회합니다.
-- `PqcWorkflowTest`: 정상 업무·권한·재시작·변조(F-01/T-01/P-01/T-02), 레거시 호환·GCM 문맥(L-01), 저장된 키 유실(K-02), 공개/개인키 쌍 불일치(K-02b), 레거시 DB의 첫 PQC 업그레이드(U-01)를 검사합니다.
+- `ContractService`: 승인 검증은 봉투 형식과 알고리즘을 결합합니다. `contract-envelope-v1`에는 ECDSA-P256-SHA256만, `contract-envelope-v2`에는 ML-DSA-65만 허용해 유효한 레거시 서명으로 PQC 문서를 승인된 것으로 바꿀 수 없습니다. 승인 메시지는 방식별 해시 지문으로 검증하며 `approved-copy` 공개키도 서명 방식에 맞춥니다.
+- `Json`: Jackson parser의 strict duplicate detection을 켜서 저장 JSON의 최상위·중첩 객체에 같은 필드가 반복되면 파싱이 실패합니다.
+- `PqcWorkflowTest`: 정상 업무·권한·재시작·변조(F-01/T-01/P-01/T-02), 레거시 호환·GCM 문맥·중복 필드(L-01), ECDSA/PQC 알고리즘 혼합 승인 거부(P-02), 저장된 키 유실(K-02), 공개/개인키 쌍 불일치(K-02b), 레거시 DB의 첫 PQC 업그레이드(U-01)를 검사합니다.
 - `README.md`: 알고리즘, 데이터 경로, 이전 데이터 호환, 키 손실 시 fail-closed 동작, 실습용 신원 및 외부 배포 한계를 안내합니다.
 
 기존 DB 전량 재암호화나 재서명은 하지 않았습니다. 기존 RSA/EC 키와 레거시 DB만 있는 최초 업그레이드에서는 기존 키를 그대로 읽고, 누락된 PQC 키쌍만 생성한 뒤 DB에 도입 완료 마커를 씁니다. 이후 재시작에서는 해당 마커가 PQC 키 재생성을 차단합니다. 기존 PQC 봉투·의견·ML-DSA 승인이 있으면 마커가 없더라도 키 생성은 허용하지 않습니다. 개인키·로컬 DB는 프로젝트 ZIP에 넣지 않으며 빈 데이터 디렉터리에서 시작할 때 앱이 키와 DB를 생성합니다.
@@ -85,7 +86,7 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 
 ## 7. 기능 및 보안 검증
 
-**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-submission-extract-final-20261107-v3` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 5, Failures: 0, Errors: 0, Skipped: 0`입니다.
+**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-submission-extract-final-20261107-v4` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`입니다.
 
 | 시험 | 방법 | 관찰 결과 |
 |---|---|---|
@@ -93,15 +94,17 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 | 사용자별 접근 | 작성자·수신자 외 `dave`로 문서 읽기, 미전달 수신자 읽기; HTTP 요청은 `X-User: dave` 사용 | 둘 다 서비스 계층에서 거부; HTTP smoke의 비권한 조회 응답은 404 |
 | 승인 검증 | 승인본 조회 및 승인 이력 재조회 | 통과. 서명 알고리즘, 승인자, 서명 메시지 검증 경로를 확인 |
 | 기존 형식 호환 | 기존 RSA-OAEP/AES-GCM v1 봉투 복호화, 기존 ECDSA-P256/SHA-256 서명 확인 | 통과. 새 ML-DSA 검증 경로에서는 ECDSA 서명이 거부됨 |
+| 알고리즘·형식 결합 (P-02) | PQC 문서에 대해 실제 ML-DSA 승인 기록을 시험용 기존 ECDSA 개인키로 유효하게 재서명하고 승인 행 교체 | 독립 ECDSA 검증은 성공하지만 문서 봉투와 승인 알고리즘 불일치로 승인본 조회가 409 거부 |
+| JSON 중복 필드 (L-01) | `format` 키가 두 번 든 저장 JSON 문자열을 파싱 | 파서가 `IllegalArgumentException`으로 거부. 최상위와 중첩 JSON 객체에 동일한 strict duplicate 설정 적용 |
 | 저장 지속성 | F-01에서 동일 DATA_DIR로 서비스 객체 재생성, U-01에서 Spring Boot 웹 컨텍스트를 종료한 뒤 같은 DATA_DIR로 다시 기동 | 통과. 저장된 문서·승인본은 키 재생성 없이 복호화·검증됨. 재기동 후 승인본 `signature_valid=true`, 본문 동일 |
 | 사후 변조 | F-01 테스트에서 승인된 레코드의 암호문 마지막 바이트를 변경한 뒤 승인본 읽기 | 통과. 승인 서명/봉투 지문 검증에서 오류 반환, 정상 승인본으로 취급하지 않음 |
 | 저장 키 상태 (K-02/K-02b) | 기존 저장 데이터가 있는 상태에서 ML-KEM 개인키 삭제 또는 공개키 쌍 교체 후 Spring Boot 애플리케이션 컨텍스트로 기동 | 두 경우 모두 컨텍스트 시작이 `InvalidKeyException` 원인으로 실패. 키 파일 자동 재생성 없음 |
 | 최초 업그레이드·HTTP 업무 흐름 (U-01) | RSA/EC 키 파일과 기존 형식 DB만 만든 뒤 Spring Boot 웹 컨텍스트 기동; HTTP API로 신규 문서 작성·전달·열람·승인·승인본 조회; 컨텍스트 재기동 후 승인본 재조회 | 통과. 레거시 v1 본문 열람, 신규 ML-KEM 봉투와 ML-DSA 승인, `pqc_keys_initialized` 기록, 재기동 후 `signature_valid=true`와 본문 동일 확인 |
 | 최종 JAR의 OS 프로세스 재시작 | 현재 소스에서 패키징한 `target/application.jar`를 별도 DATA_DIR·포트 18083으로 실제 실행; HTTP 문서 생성·전달·승인·승인본 조회 후 프로세스를 종료하고 동일 설정으로 재실행 | 통과. 재기동 후 health=`ok`, 승인 scheme=`ML-DSA-65`, `signature_valid=true`, 본문이 재기동 전과 동일 |
-| 제출 ZIP 재현성 | 최종 ZIP을 `pqc-submission-extract-final-20261107-v3`에 추출하고 Java 21/Maven 3.9.16으로 `mvn -B test package` 실행 | 통과. 추출본 `Tests run: 5, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`. 압축기는 26개 항목을 생성했으며 DB·개인키·`target`은 제외했습니다. |
+| 제출 ZIP 재현성 | 최종 ZIP을 `pqc-submission-extract-final-20261107-v4`에 추출하고 Java 21/Maven 3.9.16으로 `mvn -B test package` 실행 | 통과. 추출본 `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`. 압축기는 26개 항목을 생성했으며 DB·개인키·`target`은 제외했습니다. |
 | Docker 신규 환경 실행 | 이번 직접 확인에서 수행하지 않음 | Maven 패키지와 앱 HTTP smoke 및 서비스 계층 테스트까지 확인. Docker daemon을 사용할 수 없어 `docker compose up` 환경 검증은 미수행 |
 
-통합 테스트는 실제 ML-KEM 캡슐화·역캡슐화, ML-DSA 서명·검증을 수행합니다. `PqcWorkflowTest`의 5개 메서드는 F-01 `pqcDocumentWorkflowPersistsAndRejectsUnauthorizedOrTamperedAccess`, L-01 `legacyRsaEnvelopeAndEcdsaApprovalRemainReadable`, U-01 `legacyOnlyDatabaseCanStartAndTransitionToPqc`, K-02 `missingPersistedKeyFailsClosed`, K-02b `mismatchedPersistedKeyPairFailsClosed`입니다. 로컬 재현 뒤 상세 로그는 `target/surefire-reports/com.partner.contracts.PqcWorkflowTest.txt`와 `.xml`에서 확인할 수 있습니다. 직접 확인하지 않은 항목은 성능·메모리 벤치마크, 다중 OS/Docker 신규 환경, 외부 클라이언트 또는 언어 간 상호운용, 공식 FIPS 모듈 검증입니다. Bouncy Castle 일반 JCA Provider는 FIPS 검증 모듈이라고 주장하지 않습니다. TLS 미적용, 외부 인증 미구현, 서버 복호화 구조 때문에 서버 침해·가상 사용자 헤더 위조를 방어하는 종단 간 문서 암호화는 아닙니다.
+통합 테스트는 실제 ML-KEM 캡슐화·역캡슐화, ML-DSA 서명·검증을 수행합니다. `PqcWorkflowTest`의 6개 메서드는 F-01 `pqcDocumentWorkflowPersistsAndRejectsUnauthorizedOrTamperedAccess`, L-01 `legacyRsaEnvelopeAndEcdsaApprovalRemainReadable`, P-02 `validLegacyEcdsaCannotApprovePqcEnvelope`, U-01 `legacyOnlyDatabaseCanStartAndTransitionToPqc`, K-02 `missingPersistedKeyFailsClosed`, K-02b `mismatchedPersistedKeyPairFailsClosed`입니다. L-01에는 중복 JSON 필드 거부 확인도 포함됩니다. 로컬 재현 뒤 상세 로그는 `target/surefire-reports/com.partner.contracts.PqcWorkflowTest.txt`와 `.xml`에서 확인할 수 있습니다. 직접 확인하지 않은 항목은 성능·메모리 벤치마크, 다중 OS/Docker 신규 환경, 외부 클라이언트 또는 언어 간 상호운용, 공식 FIPS 모듈 검증입니다. Bouncy Castle 일반 JCA Provider는 FIPS 검증 모듈이라고 주장하지 않습니다. TLS 미적용, 외부 인증 미구현, 서버 복호화 구조 때문에 서버 침해·가상 사용자 헤더 위조를 방어하는 종단 간 문서 암호화는 아닙니다.
 
 **검증 범위의 신뢰 한계:** `/approved-copy`에서 서버는 저장된 서명과 서명 메시지를 검증하고 `signature_valid` 결과 및 서버가 관리하는 공개키를 응답합니다. 응답의 `signed_payload`는 JSON 객체이며, 서명 입력은 애플리케이션의 Jackson 직렬화 규칙에 의존합니다. RFC 8785/JCS의 정규 JSON이나 외부 검증용 원시 서명 바이트 프로토콜을 구현한 것은 아닙니다. 공개키도 독립 신뢰기관·핀닝으로 인증되지 않으므로, 현재 결과는 해당 서비스가 가진 승인 기록의 내부 일관성을 확인한 것입니다. 제3자가 서버와 독립해 검증 가능한 증명 형식은 후속 설계 항목입니다.
 
@@ -112,6 +115,8 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 | 본문·의견을 수신자별 PQC 보호 | `DocumentProtection.protect/open`, `ContractService.comment/comments` | F-01, L-01 |
 | 전달·열람·승인 권한 및 승인본 무결성 | `ContractService.deliver/read/approve/approvedCopy`, `ApiController` 경로 인가 | F-01 (비권한 404와 암호문 변경 거부) |
 | 이전 RSA/ECDSA 데이터 읽기 호환 | `DocumentProtection.open` 및 기존 승인 검증 분기 | L-01 |
+| 승인 형식과 서명 알고리즘 결합 | `ContractService.verified`의 v1/ECDSA·v2/ML-DSA 허용 조합 | P-02 및 L-01 |
+| 저장 JSON의 중복 필드 거부 | `Json`의 Jackson `STRICT_DUPLICATE_DETECTION` | L-01 |
 | 레거시 DB 최초 PQC 생성 및 그 뒤 키 손실 차단 | Spring `Application.contracts` → `Application.openService`, `Storage.pqcKeysInitialized/hasPqcArtifacts/markPqcKeysInitialized`, `CredentialStore.loadPqc` | U-01, K-02, K-02b |
 | 데이터와 승인 키가 프로세스 재시작 후 유지 | `CredentialStore`, SQLite `Storage`; 동일 `DATA_DIR` | F-01 및 HTTP smoke 재시작 |
 
@@ -126,9 +131,10 @@ HTTP smoke는 사용자 요청의 업무 기능과 저장소 재시작을 추가
 | 의견 AAD | 같은 직렬화 설정에서 `domain=contract-comment-v1`, `id`, `contract_id`, `version`, `author`, `created_at`를 포함합니다. |
 | DEK 포장 AAD | UTF-8 `contract-key-wrap-v2` + 0x00 + UTF-8 수신자 ID + 0x00 + 문서/의견 context 바이트. GCM nonce는 매 포장마다 무작위 12 byte, 태그 128 bit입니다. |
 | 승인 서명 입력 | Jackson 정렬 compact JSON의 UTF-8 바이트. 필드는 `domain`, `context`, `envelope_sha512`(레거시는 `envelope_sha256`), `approval_id`, `approver`, `approved_at`, `signature_scheme`; 정렬된 직렬화 키 순서는 알파벳순입니다. JCS/RFC 8785나 외부 고정 바이트 포맷은 아닙니다. |
+| JSON 파싱 | `JsonFactory`의 `StreamReadFeature.STRICT_DUPLICATE_DETECTION`을 활성화해 필드명 중복을 최상위와 중첩 구조에서 모두 거부합니다. |
 | 시험 증거 위치 | 테스트 ID와 메서드는 위 목록에 표시. `mvn -B test package` 실행 결과는 `target/surefire-reports/com.partner.contracts.PqcWorkflowTest.txt` 및 `.xml`에 생성됩니다. ZIP에는 빌드 로그/`target`을 싣지 않으며 제출자가 같은 명령으로 재생성합니다. |
 
-**제출 소스 식별:** `contract-inbox-pqc-submission.zip`, SHA-256 `589775B33BFC8B0EB2D2F26E5C276BDC1C1FDEB6C98957557AD78E86C3518EF1` (26개 항목). 이 값은 최종 ZIP을 재현 빌드한 뒤 계산했습니다.
+**제출 소스 식별:** `contract-inbox-pqc-submission.zip`, SHA-256 `FAFAAEFE80E41EC2243B5C7FDD56586779022CE7BE8F57C7BDF1DC2F52506B86` (26개 항목). 이 값은 최종 ZIP을 재현 빌드한 뒤 계산했습니다.
 
 ## AI 활용 여부
 

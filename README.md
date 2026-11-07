@@ -22,7 +22,7 @@ Java 21 및 Maven 3.9 이상이 설치된 환경의 테스트·패키징:
 mvn -B test package
 ```
 
-최종 제출 ZIP에서 재현한 결과는 테스트 5개 통과, `BUILD SUCCESS`입니다. Docker 신규 환경 실행은 이번 검증에 포함하지 않았습니다.
+최종 제출 ZIP에서 재현한 결과는 테스트 6개 통과, `BUILD SUCCESS`입니다. Docker 신규 환경 실행은 이번 검증에 포함하지 않았습니다. 테스트는 유효한 기존 ECDSA 서명을 PQC 봉투에 붙이는 승인 알고리즘 혼합 시도를 거부하며, 최상위·중첩 JSON의 중복 필드도 거부합니다.
 
 ## 암호·운영 요약
 
@@ -30,4 +30,4 @@ mvn -B test package
 
 `X-User`는 실습용 가상 신원으로 실제 인증이 아닙니다. 서버 내부 승인 검증은 독립적인 제3자 검증을 제공하지 않습니다. 자세한 근거와 한계는 기술보고서를 참고하세요.
 
-제출 ZIP SHA-256: `589775B33BFC8B0EB2D2F26E5C276BDC1C1FDEB6C98957557AD78E86C3518EF1`
+제출 ZIP SHA-256: `FAFAAEFE80E41EC2243B5C7FDD56586779022CE7BE8F57C7BDF1DC2F52506B86`
