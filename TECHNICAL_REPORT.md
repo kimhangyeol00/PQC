@@ -1,4 +1,4 @@
-# PQC 해커톤 예선 기술보고서 초안
+# PQC 해커톤 예선 기술보고서 작성본
 
 ## 표지 정보
 
@@ -7,22 +7,15 @@
 - 성명: 미기재
 - 버전: `problem_source.zip` 기반 구현 / 2026-11-07
 
-> 공식 양식 파일은 이 저장소의 제출 ZIP에 포함되지 않습니다. 이 Markdown 보고서는 제출 버전의 기술 내용 원본이며, 제출 전에 표지의 참가자 정보를 채우고 공식 양식에 옮겨 쪽수·서식을 확인해야 합니다. 양식의 표지 제외 7쪽 이내 조건에 맞춰 아래 내용을 요약형으로 작성했습니다.
+> 이 Markdown은 제출 ZIP과 짝을 이루는 기술 내용 원본입니다. 공식 양식에 옮길 때 표지의 팀·성명 정보를 채우고, 표지 제외 7쪽 이내에 맞춰 그림과 표가 잘리는지 확인해야 합니다. 보고서 본문의 그림은 저장소 `report-assets/` SVG로 포함했습니다.
 
 ## 1. 수행 결과 요약
 
 기존 문서함은 문서 본문을 AES-256-GCM으로 암호화하고 데이터 키를 작성자·수신자 RSA-2048 공개키로 각각 RSA-OAEP-SHA-256 포장했으며, 승인은 ECDSA P-256/SHA-256으로 서명했습니다. 새 문서·의견은 작성자와 수신자별 ML-KEM-768 캡슐화로 공유 비밀을 만들고 Bouncy Castle KTS의 KDF로 256-bit AES KEK를 파생해 문서 DEK를 GCM 포장합니다. 본문은 AES-256-GCM으로 보호합니다. 최신 승인에는 ML-DSA-65 서명을 적용하며 계약·버전 문맥 및 봉투 전체의 SHA-512 지문을 서명합니다.
 
-```text
-작성자 ──작성/수정──> 계약 서비스 ──AES-256-GCM 봉투──> SQLite
-                              │                            │
-                ML-KEM-768 ──┴── 작성자 키 / 수신자 키 ───┘
-                              │
-수신자 ──전달 문서 열람/의견──┤
-                              └──최신 버전 승인── ML-DSA-65 서명
-                                   │
-                            승인본 확인 시 서명·봉투 재검증
-```
+![그림 1. PQC 계약 문서함 시스템 구성 및 데이터 흐름](report-assets/system-architecture.svg)
+
+![그림 2. 레거시에서 PQC 문서 형식으로의 전환 경로](report-assets/transition-path.svg)
 
 문서 작성·전달·열람·의견·승인·승인본 확인과 사용자별 권한 흐름을 유지했습니다. 기존 저장소에서 과거 RSA/ECDSA 자료는 계속 읽고 확인하되, 새 자료는 PQC 봉투와 서명만 사용합니다. ML-KEM/ML-DSA 처리, AEAD 태그 또는 서명 검증에 실패하면 오류를 반환하는 fail-closed 경로를 적용했습니다. JUnit 테스트 14개와 HTTP API smoke에서 정상 업무 흐름, 레거시 전환, 재시작 후 지속성, 비권한 사용자 거부, 암호문 변경 거부를 확인했습니다. 테스트가 확인하는 `X-User` 헤더는 실습용 신원 선택값일 뿐 인증 수단이 아니므로 실제 배포 권한경계로 간주하면 안 됩니다.
 
@@ -39,7 +32,7 @@
 | 계약 제목·본문·버전 | `versions.title`, `versions.envelope`; `DocumentProtection.protect/open` | AES-256-GCM, 랜덤 256-bit DEK, 기존 RSA-2048 OAEP-SHA-256 DEK 포장. 신규는 ML-KEM-768 공유 비밀→KTS 파생 AES-256 KEK→GCM DEK 포장 | 매우 높음. 계약 조항·기술자료이며 장기 보관·수집 후 복호화 위험 | AES 유지, 공개키 기반 DEK 전달을 ML-KEM-768/KTS로 전환 |
 | 계약 의견 | `comments.content`; 원본은 평문 SQLite 저장 | 별도 공개키 암호 없음 | 높음. 의견에 계약 정보·협상 조건이 포함될 수 있음 | 새 의견을 AES-GCM+사용자별 ML-KEM 봉투로 보호 |
 | 승인 증거 | `approvals`의 승인자·시각·알고리즘·서명, `ContractService.message` | ECDSA P-256/SHA-256; 계약/버전 문맥과 봉투 SHA-256 지문을 서명 | 매우 높음. 장기 진위·변경 탐지, 장기 검증 필요 | 새 승인 ML-DSA-65 + 봉투 SHA-512 지문 |
-| 사용자 공개/개인키 | `CredentialStore`; `DATA_DIR/keys/*.pem`, `.pqc.pem`, `.pqc.pub.pem`; DB `metadata.pqc_keys_initialized` | 사용자별 RSA 암호화 키와 EC 서명 키 | 최고. 키 유출 시 기밀성 또는 승인 진위 붕괴 | 레거시 키 유지, ML-KEM/ML-DSA 별도 키쌍 생성·영구 보관. 초기 도입 완료 마커와 키쌍 자체검사로 유실·불일치 차단 |
+| 사용자 공개/개인키 | `CredentialStore`; `DATA_DIR/keys/*.pem`, `.pqc.pem`, `.pqc.pub.pem`; DB `metadata.pqc_keys_initialized`; `/users/{user}/public-keys` | 사용자별 RSA 암호화 키와 EC 서명 키. 공개키는 PEM으로 제공하며 X.509 인증서·CA 체인은 없음 | 최고. 키 유출 시 기밀성 또는 승인 진위 붕괴. 인증된 키 바인딩 부재 | 레거시 키 유지, ML-KEM/ML-DSA 별도 키쌍 생성·영구 보관. 초기 도입 완료 마커와 키쌍 자체검사로 유실·불일치 차단 |
 | 업무 DB·전달/권한 메타데이터 | `contracts`, `deliveries`, `comments`, `approvals` SQLite 테이블 | 공개키 암호 없음. 전달 관계와 사용자 ID로 앱 권한 결정 | 높음. 관계·시점·승인 유무의 노출·변조 위험 | DB 자체 암호화는 미적용; 승인 메시지 서명은 승인 문맥과 버전 봉투 지문을 검증 |
 | API/전송 계층 | `ApiController`, `application.properties`, `compose.yaml` | `X-User` 헤더 가상 사용자, 소스 내 TLS 미설정 | 인터넷 노출 시 전송·인증 위험 | 프로젝트 내 TLS·인증 전환 없음; 로컬 전용으로 제한 |
 
@@ -58,7 +51,7 @@
 |---|---|---|
 | 본문·의견 암호화 | AES-256-GCM, 랜덤 12-byte nonce, 128-bit 태그; 문서 맥락은 AAD | 태그 오류·문맥 불일치 시 내용을 반환하지 않고 409 |
 | 사용자별 데이터 키 전달 | ML-KEM-768 (FIPS 203) 단독 PQC KEM. 작성자·수신자 공개키마다 캡슐화하여 공유 비밀과 캡슐화 바이트를 생성. KTSParameterSpec(`AES`, 256)으로 KDF3/SHA-256을 적용해 AES-256 KEK를 파생하고, 이를 랜덤 nonce의 AES-GCM으로 DEK를 포장. 수신자 ID와 버전 문맥을 포장 AAD에 결합 | 알 수 없는 키·캡슐화·인증 오류 시 fail closed. RSA 폴백 없음 |
-| 승인·승인본 무결성 | ML-DSA-65 (FIPS 204); 도메인 분리된 승인 메시지에 계약/버전 맥락, 승인자/시각, 봉투 SHA-512 지문 포함 | 지원하지 않는 서명 형식, 검증 실패, 봉투 변경 시 승인본 거부 |
+| 승인·승인본 무결성 | v2 신규 문서에는 ML-DSA-65 (FIPS 204); 도메인 분리된 승인 메시지에 계약/버전 맥락, 승인자/시각, 봉투 SHA-512 지문 포함. v1 레거시에는 기존 ECDSA P-256/SHA-256만 허용 | 봉투 형식과 서명 방식 불일치, 지원하지 않는 형식, 검증 실패, 봉투 변경 시 승인본 거부 |
 | 공개키 공개 | PEM 인코딩 공개키를 기존 사용자 공개키 API에서 제공. 용도별 PQC 키 | 불일치·누락 시 키 처리 실패 |
 
 PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적용은 하나의 일관된 암호 문맥을 만들고, 하이브리드 키 결합 규칙·클래식 폴백 경로의 구현 오류를 줄입니다. 암호 연산은 서버 내부에서 수행하므로 기존 업무 API 클라이언트에 PQC 연산 구현을 요구하지 않습니다. 다만 외부에서 봉투·서명을 직접 처리하는 검증기는 PQC를 지원해야 하며, 라이브러리 결함 또는 격자 기반 분석 발전에 별도 클래식 방어층이 없습니다. ML-KEM-512보다 보수적인 768을 선택했고, 1024 대비 캡슐 크기·계산량을 낮추는 범주 3 선택입니다. NIST는 FIPS 203 매개변수에서 768을 192-bit 범주로 설명하며 더 높은 보안 세트일수록 성능이 낮아진다고 명시합니다.
@@ -71,7 +64,8 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 - `Application`/`Storage`: 최초 PQC 도입을 `metadata.pqc_keys_initialized`로 표시합니다. 기존 RSA/EC 키와 DB만 있는 레거시 저장소이고 PQC 자산도 아직 없으면 RSA/EC 키 생성은 계속 금지하면서 PQC 키 생성만 허용합니다. 키 생성·self-test가 끝난 뒤 마커를 기록합니다. 마커가 있거나 PQC 자료가 발견된 경우에는 키 재생성을 금지합니다.
 - `CredentialStore`: 사용자별 ML-KEM-768·ML-DSA-65 키를 새 `.pqc` PEM 파일로 생성하고 기존 RSA/EC 키와 분리해 유지합니다. 키 파일을 데이터 디렉터리에 보관하므로 DB와 동일한 영속 저장소를 사용합니다. 로드한 ML-DSA 쌍은 서명/검증, ML-KEM 쌍은 캡슐화/역캡슐화 self-test로 대응 여부를 확인합니다. 마커가 있는 저장소에서 키 누락·불완전·불일치 시 자동 재생성하지 않고 시작을 거부합니다. POSIX에선 개인키 0600, 폴더 0700 권한을 지정합니다.
 - `DocumentProtection`: 새 `contract-envelope-v2`를 생성합니다. 작성자·지정 수신자 공개키별 ML-KEM 캡슐화로 KEM 공유 비밀과 캡슐화 바이트를 만들고, KTS가 파생한 AES-256 KEK로 DEK를 AES-GCM 포장합니다. envelope v1/RSA 복호화와 ECDSA 승인 확인은 이미 존재하는 데이터만 읽기 위한 호환 경로입니다.
-- `ContractService`: 새 승인 메시지는 봉투 SHA-512 지문으로 ML-DSA-65 검증하며, 과거 ECDSA 기록은 원래 SHA-256 메시지 형태로 확인합니다. 서명 알고리즘에 따라 `approved-copy`의 공개키도 맞춰 제공합니다. 새 의견을 봉투로 저장하고 API 조회 때 권한 확인 후 복호화합니다. 의견 평문으로 저장된 이전 레코드는 원래 값을 조회합니다.
+- `ContractService`: v2 봉투는 ML-DSA-65, v1 봉투는 ECDSA-P256-SHA256만 승인 검증에 허용합니다. 새 승인 메시지는 봉투 SHA-512 지문, 과거 ECDSA 기록은 SHA-256 지문으로 확인합니다. 서명 알고리즘에 따라 `approved-copy`의 공개키도 맞춰 제공합니다. 새 의견은 `protection_format`과 함께 암호문으로 저장하고 API 조회 때 권한 확인 후 복호화합니다. 기존 평문 의견은 마이그레이션 후에도 형식 표지로 구분해 원래 값을 조회합니다.
+- `Json`: Jackson의 중복 키 검사와 trailing token 검사를 켜 최상위·중첩 JSON의 중복 필드 및 두 번째 JSON 값이 파싱되지 않게 했습니다.
 - `PqcWorkflowTest`: 정상 업무·권한·재시작·변조(F-01/T-01/P-01/T-02), 레거시 호환·GCM 문맥(L-01), 저장된 키 유실(K-02), 공개/개인키 쌍 불일치(K-02b), 레거시 DB의 첫 PQC 업그레이드(U-01)를 검사합니다.
 - `README.md`: 알고리즘, 데이터 경로, 이전 데이터 호환, 키 손실 시 fail-closed 동작, 실습용 신원 및 외부 배포 한계를 안내합니다.
 
@@ -79,7 +73,7 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 
 ## 6. 전환 과정의 문제와 해결
 
-최종 보강 전 회귀 시험에서 암호화 의견을 평문 문자열로 바꾸면 정상 반환되는 문제, `{`로 시작하는 기존 평문 의견의 조회 오류, PQC v2 문서에 유효한 ECDSA 승인을 붙이면 인정하는 조합, 저장 JSON의 중복 필드 허용을 재현했습니다. 추가 시험 4개 중 3개 실패·1개 오류였고 기존 업무 시험 5개는 통과했습니다.
+보강 과정에서 암호화 의견을 평문 문자열로 바꾸면 정상 반환되는 문제, `{`로 시작하는 기존 평문 의견의 조회 오류, PQC v2 문서에 유효한 ECDSA 승인을 붙이면 인정하는 조합, 저장 JSON의 중복 키·뒤따르는 JSON 값 허용을 재현했습니다. 첫 회귀 시험에서는 보강 대상의 실패를 확인했고, 현재 `PqcHardeningTest` 8개와 `PqcWorkflowTest` 6개를 포함한 전체 14개 시험이 통과합니다.
 
 의견은 `comments.protection_format` 열로 저장 형식을 명시하고 신규 작성 시 `contract-envelope-v2`를 기록하도록 수정했습니다. 이전 DB의 열 추가와 기존 의견 분류는 한 트랜잭션으로 수행합니다. 이후 조회에서는 해당 형식만 허용하며, 암호화 의견이 평문·미지원 형식·손상된 JSON으로 바뀌면 409로 거부합니다. 기존 평문은 내용이 `{`로 시작해도 읽습니다. 최초 분류 전 이미 훼손되어 형식 단서가 사라진 자료나 DB 전체를 함께 위조한 상황의 진위를 보장하지는 않습니다.
 
@@ -91,7 +85,7 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 
 ## 7. 기능 및 보안 검증
 
-**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-final-hardened` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`입니다.
+**시험 명령:** Java 21.0.13 Temurin, Maven 3.9.16, Windows 11, Bouncy Castle 1.86에서 `mvn -B test package` 실행. 최종 제출 ZIP을 `pqc-final-hardened` 별도 임시 폴더에 추출해 같은 명령으로 재검증했습니다. 추출본 결과는 `BUILD SUCCESS`, `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`입니다. HTTP 프로세스 검증은 `pwsh -File scripts/Verify-Http.ps1`로 별도 실행합니다.
 
 | 시험 | 방법 | 관찰 결과 |
 |---|---|---|
@@ -109,7 +103,7 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 
 최종 제출 ZIP을 별도 경로에 추출해 `mvn -B test package`를 실행한 결과는 `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`, `BUILD SUCCESS`입니다. 추출본의 패키징 JAR도 별도 DATA_DIR로 HTTP 실행해 생성·전달·의견·승인·승인본 흐름, 비권한/미전달 404, 신원 누락 401, 작성자 승인 403, 앱 프로세스 재시작 후 문서·의견·공개키 유지를 확인했습니다. 재현 스크립트는 `scripts/Verify-Http.ps1`입니다. Docker 환경 검증은 포함하지 않았습니다.
 
-추가된 `PqcHardeningTest` 8개는 다음 범위를 확인합니다. 기존 `PqcWorkflowTest` 5개와 합쳐 총 14개입니다.
+추가된 `PqcHardeningTest` 8개는 다음 범위를 확인합니다. `PqcWorkflowTest` 6개와 합쳐 총 14개입니다.
 
 | 시험 | 방법과 결과 |
 |---|---|
@@ -124,7 +118,7 @@ PQC 단독을 택했습니다. 공인된 FIPS 203/204 매개변수의 직접 적
 
 실제 JAR 프로세스 재시작 검증은 제출 ZIP에 포함된 `scripts/Verify-Http.ps1`로 재현합니다. PowerShell 7에서 실행하며 생성·전달·의견·승인·승인본, 비권한 404, 미전달 404, 신원 누락 401, 작성자 승인 403을 확인합니다. 같은 DATA_DIR로 프로세스를 다시 시작해 본문·의견·공개키가 유지되는지 검사합니다. 상세 시험 안내는 `docs/VERIFICATION.md`, 결과는 `target/http-verification/result.json`에 있습니다.
 
-통합 테스트는 실제 ML-KEM 캡슐화·역캡슐화, ML-DSA 서명·검증을 수행합니다. `PqcWorkflowTest`의 5개 메서드는 F-01 `pqcDocumentWorkflowPersistsAndRejectsUnauthorizedOrTamperedAccess`, L-01 `legacyRsaEnvelopeAndEcdsaApprovalRemainReadable`, U-01 `legacyOnlyDatabaseCanStartAndTransitionToPqc`, K-02 `missingPersistedKeyFailsClosed`, K-02b `mismatchedPersistedKeyPairFailsClosed`입니다. 로컬 재현 뒤 상세 로그는 `target/surefire-reports/com.partner.contracts.PqcWorkflowTest.txt`와 `.xml`에서 확인할 수 있습니다. 직접 확인하지 않은 항목은 성능·메모리 벤치마크, 다중 OS/Docker 신규 환경, 외부 클라이언트 또는 언어 간 상호운용, 공식 FIPS 모듈 검증입니다. Bouncy Castle 일반 JCA Provider는 FIPS 검증 모듈이라고 주장하지 않습니다. TLS 미적용, 외부 인증 미구현, 서버 복호화 구조 때문에 서버 침해·가상 사용자 헤더 위조를 방어하는 종단 간 문서 암호화는 아닙니다.
+통합 테스트는 실제 ML-KEM 캡슐화·역캡슐화, ML-DSA 서명·검증을 수행합니다. `PqcWorkflowTest` 6개 메서드는 F-01 `pqcDocumentWorkflowPersistsAndRejectsUnauthorizedOrTamperedAccess`, L-01 `legacyRsaEnvelopeAndEcdsaApprovalRemainReadable`, P-02 `validLegacyEcdsaCannotApprovePqcEnvelope`, U-01 `legacyOnlyDatabaseCanStartAndTransitionToPqc`, K-02 `missingPersistedKeyFailsClosed`, K-02b `mismatchedPersistedKeyPairFailsClosed`입니다. `PqcHardeningTest`의 H-01~H-08은 표의 의견 변조, JSON, DB 마이그레이션, KEM tamper, 양쪽 키 유실을 확인합니다. 상세 로그는 `target/surefire-reports`에 생성됩니다. 직접 확인하지 않은 항목은 성능·메모리 벤치마크, 다중 OS/Docker 신규 환경, 외부 클라이언트 또는 언어 간 상호운용, 공식 FIPS 모듈 검증입니다. Bouncy Castle 일반 JCA Provider는 FIPS 검증 모듈이라고 주장하지 않습니다. TLS 미적용, 외부 인증 미구현, 서버 복호화 구조 때문에 서버 침해·가상 사용자 헤더 위조를 방어하는 종단 간 문서 암호화는 아닙니다.
 
 **검증 범위의 신뢰 한계:** `/approved-copy`에서 서버는 저장된 서명과 서명 메시지를 검증하고 `signature_valid` 결과 및 서버가 관리하는 공개키를 응답합니다. 응답의 `signed_payload`는 JSON 객체이며, 서명 입력은 애플리케이션의 Jackson 직렬화 규칙에 의존합니다. RFC 8785/JCS의 정규 JSON이나 외부 검증용 원시 서명 바이트 프로토콜을 구현한 것은 아닙니다. 공개키도 독립 신뢰기관·핀닝으로 인증되지 않으므로, 현재 결과는 해당 서비스가 가진 승인 기록의 내부 일관성을 확인한 것입니다. 제3자가 서버와 독립해 검증 가능한 증명 형식은 후속 설계 항목입니다.
 
@@ -153,13 +147,19 @@ HTTP smoke는 사용자 요청의 업무 기능과 저장소 재시작을 추가
 
 **제출 소스 식별:** `contract-inbox-pqc-submission.zip`, SHA-256 `812F6320FA1AAEAC1F8C69F0B8484CE3BD1F1F3D8C58ADCDDB20FD826383C1C7` (29개 항목). 이 값은 최종 ZIP을 재현 빌드한 뒤 계산했습니다.
 
-## AI 활용 여부
+## AI 활용 여부 및 사용 프롬프트
 
-- 활용함: OpenAI Codex (GPT-6 기반, 세부 UI 모델 버전은 기록되지 않음).
-- 주요 프롬프트 1: “기존 소스의 암호 흐름·키·데이터 경로를 분석하고 PQC 전환안을 구현해 줘.” 활용: ML-KEM/ML-DSA 설계 및 코드 수정. 채택/수정한 내용은 직접 소스와 테스트로 대조했습니다.
-- 주요 프롬프트 2: “요구된 흐름과 변조·권한·재시작 조건을 재현 가능한 검증으로 확인해 줘.” 활용: 통합 테스트 초안 작성. 실패를 수정하고 최종 실행 결과를 반영했습니다.
-- 주요 프롬프트 3: “공식 보고서 양식에 맞춰 인벤토리, 우선순위, 가정, 대안, 한계를 기술해 줘.” 활용: 보고서 초안. 소스·설정 및 시험 결과와 대조해 미검증 사항을 분리했습니다.
-- 답변 판단: AI 제안은 구현·시험을 거친 범위에서만 완료된 사실로 기재했습니다. NIST FIPS와 Bouncy Castle 공식 자료를 설계 근거로 참조했습니다.
+OpenAI Codex 데스크톱에서 GPT-6 계열 모델을 사용했습니다. 현재 실행 화면은 더 세부적인 모델 빌드·버전 식별자를 제공하지 않아 이를 확인된 값처럼 기재하지 않았습니다. 다음은 실제 수행 질문의 요지이며, 축약·정리한 문장입니다.
+
+| 주요 프롬프트(요지) | AI 답변 요약 | 사용 여부 및 판단 |
+|---|---|---|
+| 제공 소스의 데이터 흐름·암호 자산·위험·전환 우선순위를 분석해 달라 | 계약 봉투, 승인 기록, 의견, 키 저장소 및 전송/인증 경계를 인벤토리화하고 장기 기밀성과 승인 진위를 우선 전환 대상으로 제안 | 사용. 각 항목을 소스·스키마·설정과 대조해 보고서에 반영 |
+| 기존 계약 업무 흐름을 유지하면서 PQC KEM과 서명을 적용해 달라 | ML-KEM-768/KTS 기반 DEK 보호, ML-DSA-65 승인, 레거시 읽기 호환 설계를 제안 | 사용. 구현 코드와 실제 알고리즘 연산 시험으로 채택 범위를 확인 |
+| 권한, 변조, 키 유실, 재시작을 재현 가능한 시험으로 확인해 달라 | 정상 흐름, 실패 경로, 기존 저장소 업그레이드, 키쌍 검사 및 재시작 시험을 제안 | 사용. 통과한 시험만 완료 결과로 보고. 성능·Docker·외부 상호운용은 미검증으로 남김 |
+| 보안 검토에서 발견한 ECDSA 승인 혼합과 중복 JSON 필드를 수정해 달라 | v1/ECDSA·v2/ML-DSA 허용 조합, 엄격 중복·trailing token 파싱, 공격 재현 시험을 제안 | 사용. `P-02`, `H-04` 회귀 시험과 코드에서 동작 확인 |
+| 기술보고서 항목 파일에 맞춰 제출 내용을 보완해 달라 | 그림, 범위·인벤토리·설계·구현·문제·검증·AI 활용을 빠짐없이 구성하도록 제안 | 사용. 이 문서에 구성도·전환도를 삽입하고 불일치한 시험 수와 설명을 소스에 맞춰 정정 |
+
+검토한 하이브리드 ML-KEM/X25519 설계는 구현하지 않았습니다. 대상 API 클라이언트의 프로토콜 호환 계층이 없고, 서버 내부 암호 서비스로 신규 문서의 PQC 보호를 완료할 수 있어 단독 PQC를 선택했습니다. AI가 제안한 내용은 구현·검증을 거친 범위에서만 사실로 기술했습니다.
 
 ## 참고자료
 

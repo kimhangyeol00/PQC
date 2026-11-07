@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="680" viewBox="0 0 1240 680" role="img" aria-labelledby="title desc">
+  <title id="title">PQC 계약 문서함 시스템 구성 및 데이터 흐름</title>
+  <desc id="desc">작성자와 검토자가 API를 통해 계약 서비스를 사용하고, 서비스는 암호 모듈과 SQLite 및 영속 키 저장소를 이용해 문서·의견을 보호하고 승인을 검증한다.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#52647a"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker>
+    <style>
+      .bg{fill:#f7f9fc}.title{font:700 25px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#14243a}.subtitle{font:14px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#52647a}
+      .head{font:700 17px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#14243a}.body{font:14px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#26384d}.small{font:12px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#52647a}
+      .box{fill:#fff;stroke:#cbd5e1;stroke-width:1.5;rx:14}.actor{fill:#eff6ff;stroke:#93c5fd}.app{fill:#f0f7ff;stroke:#60a5fa}.crypto{fill:#f5f3ff;stroke:#a78bfa}.store{fill:#ecfdf5;stroke:#6ee7b7}.key{fill:#fff7ed;stroke:#fdba74}
+      .line{fill:none;stroke:#52647a;stroke-width:2.3;marker-end:url(#arrow)}.blueLine{fill:none;stroke:#2563eb;stroke-width:2.5;marker-end:url(#arrowBlue)}
+      .badge{fill:#e0e7ff;rx:8}.badgeText{font:700 12px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#3730a3}
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1240" height="680" rx="18"/>
+  <text class="title" x="36" y="46">그림 1. PQC 계약 문서함 구성 및 데이터 흐름</text>
+  <text class="subtitle" x="36" y="72">서버가 사용자 권한을 확인하고 문서를 복호화합니다. X-User는 데모 신원 헤더입니다.</text>
+
+  <rect class="box actor" x="38" y="128" width="205" height="150"/>
+  <text class="head" x="62" y="161">업무 사용자</text>
+  <text class="body" x="62" y="194">작성자 · 협력사 검토자</text>
+  <text class="body" x="62" y="220">작성 / 전달 / 열람 / 의견</text>
+  <text class="body" x="62" y="246">승인 / 승인본 확인</text>
+
+  <rect class="box app" x="318" y="112" width="280" height="202"/>
+  <text class="head" x="344" y="147">계약 서비스 · API</text>
+  <text class="body" x="344" y="181">ContractService · ApiController</text>
+  <text class="body" x="344" y="208">전달 관계·사용자별 권한 검사</text>
+  <text class="body" x="344" y="235">버전·의견·승인 상태 관리</text>
+  <rect class="badge" x="344" y="258" width="205" height="31"/>
+  <text class="badgeText" x="358" y="279">인증 경계는 데모 수준</text>
+
+  <rect class="box crypto" x="656" y="102" width="300" height="225"/>
+  <text class="head" x="682" y="139">문서 보호 · 승인 검증</text>
+  <text class="body" x="682" y="174">본문·의견: AES-256-GCM</text>
+  <text class="body" x="682" y="201">DEK: ML-KEM-768 + KTS KEK</text>
+  <text class="body" x="682" y="228">승인: ML-DSA-65</text>
+  <text class="body" x="682" y="255">v1/ECDSA · v2/ML-DSA만 허용</text>
+  <text class="small" x="682" y="294">승인본 조회 시 서명·봉투 지문 재검증</text>
+
+  <rect class="box store" x="1010" y="114" width="195" height="198"/>
+  <text class="head" x="1034" y="149">SQLite DB</text>
+  <text class="body" x="1034" y="184">versions.envelope</text>
+  <text class="body" x="1034" y="211">comments + 형식표지</text>
+  <text class="body" x="1034" y="238">approvals · deliveries</text>
+  <text class="small" x="1034" y="278">DB는 암호화되지 않음</text>
+
+  <path class="blueLine" d="M243 187 C270 187 284 187 318 187"/>
+  <text class="small" x="255" y="173">HTTPS 미구성</text>
+  <path class="line" d="M598 187 L656 187"/>
+  <text class="small" x="600" y="171">업무 문맥</text>
+  <path class="line" d="M956 187 L1010 187"/>
+  <text class="small" x="955" y="169">암호문·서명</text>
+
+  <rect class="box key" x="355" y="405" width="302" height="172"/>
+  <text class="head" x="382" y="441">DATA_DIR/keys</text>
+  <text class="body" x="382" y="476">PQC ML-KEM / ML-DSA 키쌍</text>
+  <text class="body" x="382" y="503">기존 RSA / EC 키쌍</text>
+  <text class="body" x="382" y="530">키쌍 자체검사 · 권한 제한</text>
+
+  <rect class="box" x="746" y="405" width="459" height="172"/>
+  <text class="head" x="773" y="441">보호 및 지속성 경계</text>
+  <text class="body" x="773" y="476">서버가 권한 확인 후 개인키로 DEK를 풀고 문서를 반환</text>
+  <text class="body" x="773" y="503">최초 레거시 업그레이드는 PQC 키를 만들고 DB 마커 기록</text>
+  <text class="body" x="773" y="530">이후 키 누락·불일치는 자동 재생성하지 않고 시작 거부</text>
+  <path class="line" d="M803 327 C803 366 657 368 599 405"/>
+  <text class="small" x="673" y="365">키 생성·복호화·서명</text>
+  <path class="line" d="M1105 312 C1105 354 1050 368 1013 405"/>
+  <text class="small" x="1058" y="356">metadata 마커</text>
+
+  <text class="small" x="38" y="634">운영상 한계: API 사용자의 신원 검증, TLS 종단, DB 자체 암호화 및 독립 공개키 신뢰체계는 구현 범위 밖입니다.</text>
+</svg>

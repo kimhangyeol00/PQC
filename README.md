@@ -24,7 +24,7 @@ Java 21 및 Maven 3.9 이상이 설치된 환경의 테스트·패키징:
 mvn -B test package
 ```
 
-최종 제출 ZIP에서 재현한 결과는 테스트 13개 통과, `BUILD SUCCESS`입니다. Docker 신규 환경 실행은 이번 검증에 포함하지 않았습니다.
+최종 제출 ZIP에서 재현한 결과는 테스트 14개 통과, `BUILD SUCCESS`입니다. Docker 신규 환경 실행은 이번 검증에 포함하지 않았습니다.
 
 ## 암호·운영 요약
 

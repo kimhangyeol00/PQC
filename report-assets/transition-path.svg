@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="710" viewBox="0 0 1240 710" role="img" aria-labelledby="title desc">
+  <title id="title">레거시에서 PQC 문서함으로의 전환 절차</title>
+  <desc id="desc">기존 v1 자료는 읽기 호환을 유지하고, 처음 업그레이드할 때 PQC 키를 생성합니다. 이후 v2 신규 문서에는 ML-KEM과 ML-DSA만 적용하며 키 손실과 형식 혼합을 거부합니다.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#52647a"/></marker>
+    <style>
+      .bg{fill:#f7f9fc}.title{font:700 25px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#14243a}.subtitle{font:14px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#52647a}
+      .head{font:700 17px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#14243a}.body{font:14px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#26384d}.small{font:12px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#52647a}
+      .box{fill:#fff;stroke:#cbd5e1;stroke-width:1.5;rx:14}.legacy{fill:#fff7ed;stroke:#fdba74}.upgrade{fill:#eff6ff;stroke:#93c5fd}.pqc{fill:#ecfdf5;stroke:#6ee7b7}.guard{fill:#f5f3ff;stroke:#a78bfa}
+      .line{fill:none;stroke:#52647a;stroke-width:2.4;marker-end:url(#arrow)}.chip{fill:#e2e8f0;rx:8}.chipText{font:700 12px 'Malgun Gothic','Noto Sans KR',sans-serif;fill:#334155}
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1240" height="710" rx="18"/>
+  <text class="title" x="36" y="46">그림 2. 문서 형식별 보호와 최초 PQC 업그레이드 경로</text>
+  <text class="subtitle" x="36" y="72">기존 자료는 일괄 재작성하지 않고, 신규 자료를 PQC 형식으로 생성합니다.</text>
+
+  <rect class="box legacy" x="38" y="124" width="335" height="233"/>
+  <text class="head" x="64" y="160">기존 저장 자료 · v1</text>
+  <text class="body" x="64" y="196">본문: AES-256-GCM</text>
+  <text class="body" x="64" y="223">DEK 포장: RSA-2048 OAEP-SHA-256</text>
+  <text class="body" x="64" y="250">승인: ECDSA P-256 / SHA-256</text>
+  <text class="body" x="64" y="285">보존된 RSA/EC 키로 읽기·검증 호환</text>
+  <rect class="chip" x="64" y="309" width="179" height="29"/>
+  <text class="chipText" x="78" y="329">재암호화·재서명 안 함</text>
+
+  <rect class="box upgrade" x="451" y="124" width="337" height="233"/>
+  <text class="head" x="477" y="160">최초 업그레이드</text>
+  <text class="body" x="477" y="196">기존 DB + RSA/EC 키만 있고</text>
+  <text class="body" x="477" y="223">PQC 마커·자료가 아직 없으면</text>
+  <text class="body" x="477" y="250">기존 키를 유지하며 PQC 쌍 생성</text>
+  <text class="body" x="477" y="277">ML-KEM 캡슐/ML-DSA 자체검사</text>
+  <text class="body" x="477" y="313">성공 후 DB에 도입 마커 기록</text>
+
+  <rect class="box pqc" x="866" y="124" width="336" height="233"/>
+  <text class="head" x="892" y="160">신규 저장 자료 · v2</text>
+  <text class="body" x="892" y="196">본문·의견: AES-256-GCM</text>
+  <text class="body" x="892" y="223">DEK: ML-KEM-768 → KTS KEK</text>
+  <text class="body" x="892" y="250">승인: ML-DSA-65 / SHA-512</text>
+  <text class="body" x="892" y="285">실패·변조·문맥 불일치 시 거부</text>
+  <rect class="chip" x="892" y="309" width="217" height="29"/>
+  <text class="chipText" x="906" y="329">새 자료는 PQC로만 생성</text>
+
+  <path class="line" d="M373 240 L451 240"/>
+  <text class="small" x="381" y="222">1회 업그레이드</text>
+  <path class="line" d="M788 240 L866 240"/>
+  <text class="small" x="795" y="222">이후 생성</text>
+
+  <rect class="box guard" x="102" y="427" width="470" height="171"/>
+  <text class="head" x="129" y="464">시작 시 키 보호 정책</text>
+  <text class="body" x="129" y="500">마커 또는 기존 PQC 자산이 있으면</text>
+  <text class="body" x="129" y="527">누락·불완전·불일치 키를 자동 생성하지 않음</text>
+  <text class="body" x="129" y="554">키쌍 자체검증 실패 → 서비스 시작 거부</text>
+
+  <rect class="box guard" x="668" y="427" width="470" height="171"/>
+  <text class="head" x="695" y="464">형식·승인 알고리즘 결합</text>
+  <text class="body" x="695" y="500">v1 봉투 ↔ ECDSA 승인만 허용</text>
+  <text class="body" x="695" y="527">v2 봉투 ↔ ML-DSA 승인만 허용</text>
+  <text class="body" x="695" y="554">중복 JSON 필드·추가 JSON 값은 거부</text>
+
+  <text class="small" x="38" y="652">PQC 마커는 첫 전환 완료를 식별합니다. 보존기간은 제공 자료에서 확인되지 않아 10년 보관을 평가 가정으로 두었습니다.</text>
+</svg>

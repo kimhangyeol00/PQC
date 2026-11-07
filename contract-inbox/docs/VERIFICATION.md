@@ -8,7 +8,7 @@
 mvn -B test package
 ```
 
-JUnit 테스트는 총 13개이며 실제 ML-KEM/ML-DSA 연산과 임시 SQLite DB·키를 사용합니다. 상세 결과는 `target/surefire-reports`에 생성됩니다. 정상적인 키 유실·불일치 거부 시험에서도 Spring 시작 실패 스택이 출력되므로 최종 JUnit 합계로 성공 여부를 판단합니다.
+JUnit 테스트는 총 14개이며 실제 ML-KEM/ML-DSA 연산과 임시 SQLite DB·키를 사용합니다. 상세 결과는 `target/surefire-reports`에 생성됩니다. 정상적인 키 유실·불일치 거부 시험에서도 Spring 시작 실패 스택이 출력되므로 최종 JUnit 합계로 성공 여부를 판단합니다.
 
 | 클래스·시험 | 확인 범위 |
 |---|---|
